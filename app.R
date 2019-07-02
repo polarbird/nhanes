@@ -25,7 +25,7 @@ fit.logit <- glm(formula, data=df, family=quasibinomial())
 summary(fit.logit)
 
 
-se_offset <- quantile(df$se, prob=2/3) #计算2/3切点位 se_offset = 202.2
+se_offset <- quantile(df$se, prob=2/3) #????2/3?械?位 se_offset = 202.2
 summary(se_offset)
 
 df.se_low <-  subset(df, se <= se_offset)
@@ -37,7 +37,3 @@ summary(fit.logit2)
 
 fit.logit3 <- glm(formula, data=df.se_high, family=quasibinomial())
 summary(fit.logit3)
-
-
-
-
