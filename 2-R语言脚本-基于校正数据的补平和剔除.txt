@@ -1,0 +1,171 @@
+﻿
+# 设置存放数据的文件夹
+setwd("D:/R/")
+# 未校正的数据文件csv————此处未来需要替换为校正后的数据
+mydata <- read.csv("mydata.final.csv")
+
+#compute eGFR
+egfrfun <- function(seqn,gender,race,age,scr){
+  # <2 female
+  if (is.na(scr)) {
+    a<-0
+    b<-1
+    c<-0
+  } else {
+    if (gender<2){
+      b<-0.7
+      # ==4 is black
+      if (race==4) {
+        a<-166
+      } else {
+        a<-144
+      }
+      # creatinine level 
+      if (scr>0.7) {
+        c = -1.209
+      } else {
+        c= -0.329
+      }
+    } else {
+      b<-0.9
+      if (race==4) {
+        a<-163
+      } else {
+        a<-141
+      }
+      if (scr>0.7) {
+        c = -1.209
+      } else {
+        c= -0.411
+      }
+    }
+  }
+  result <- a*(scr/b)^c*0.933^age
+}
+
+mydata$egfr <- mapply(egfrfun,mydata$seqn,mydata$gender,mydata$race,mydata$age,mydata$scr)
+
+
+
+# *****必须要在此步骤之前完成数据的加权校正
+# 因为后续步骤要进行数据的分组和统计，因此需要按条件剔除数据，并进行必要的数据补平
+# mydata是存放校正且完成egfr值计算的变量，newdata 作为剔除数据后的存放记录的变量————若数据未校正，则mydata中egfr值最大也只到62左右，无法完成后续分组。另外，剔除孕妇的方式是pregnant值不为1，或者为NA。（也可以改为补平此na值）
+newdata <- subset(mydata,(pregnant!=1 | is.na(pregnant))& age>=20 & !is.na(se) & !is.na(cd) & egfr>0)
+
+
+# 待补平的变量：education,income,smq020,smq040,alq110,alq120q,cot,bmi,energy1,energy2,bpsy1,bpsy2,bpsy3,bpdi1,bpdi2,bpdi3,bpq050a,hba1c,insulin,hypoglu
+# 剔除se和cd为na的数据时，也自然剔除了pb/mn/hg为na值的数据
+install.packages("mice")
+install.packages("randomForest")
+
+library(lattice) 
+library(MASS)
+library(nnet)
+library(randomForest)
+library(mice)
+#miceMod <- mice(newdata[, !names(newdata) %in% "seqn"], method="rf")  # 基于随机森林模型进行mice插值，插值后去除seqn
+miceMod <- mice(newdata, method="pmm") # 预测值模型进行插值，保留seqn
+miceOutput <- complete(miceMod)
+# 目前将补平后的数据存为thedata.completena.csv
+write.csv(miceOutput, 'thedata.completena.csv',row.names = FALSE)
+
+# 可以直接用井号注释掉上面那一行，并取消下一行的注释，读取已提供的thedata.completena.csv
+# miceOutput <- read.csv("thedata.completena.csv")
+afterdata <- miceOutput
+
+# education status
+eafun <- function(a) {
+  t <- 1
+  if (a>=4) {
+      t<-3
+  }
+  if (a==3) {
+      t<-2
+  }
+  result <- t  
+}
+afterdata$education <- mapply(eafun, miceOutput$education)
+
+# Poverty income ratio
+pirfun <- function(income) {
+  t <- income
+  if (income>=3) t<-3
+  result <- t
+}
+afterdata$income <- mapply(pirfun, miceOutput$income)
+
+
+# Cigarette smoking status
+smqfun <- function(a,b) {
+  if (a>=2) {
+    t <- 1
+  } else if ((a==1)&&(b>=3)) {
+    t <- 2
+  } else if ((a==1)&&((b==1)||(b==2))) {
+    t <- 3
+  }
+  result <- t
+}
+afterdata$smq <- mapply(smqfun, miceOutput$smq020,miceOutput$smq040)
+
+# Alcohol consumption status
+alqfun <- function(a,b) {
+  if (a>=2) {
+    t <- 1
+  } else if ((a==1)&&(b==0)) {
+    t <- 2
+  } else if ((a==1)&&(b>=1)) {
+    t <- 3
+  }
+  result <- t
+}
+afterdata$alq <- mapply(alqfun, miceOutput$alq110,miceOutput$alq120q)
+
+# energy
+energyfun <- function(a,b) {
+  result <- (a+b)/2
+}
+afterdata$energy <- mapply(energyfun, miceOutput$energy1,miceOutput$energy2)
+
+# Weight category
+wcfun <- function(bmi) {
+  t <- 1
+  if (bmi>=18.5) t <- 2
+  if (bmi>=25) t <- 3
+  if (bmi>=30) t <- 4
+  result <- t
+}
+afterdata$weightcate <- mapply(wcfun, miceOutput$bmi)
+
+
+# blood pressure
+bpxfun <- function(bpsy1,bpsy2,bpsy3,bpdi1,bpdi2,bpdi3,a) {
+  bpqa<-a
+  if (is.na(a)) bpqa<-0
+  if (bpqa==1) {
+    bpx <- 3
+  } else {
+    bpsy<-(bpsy1+bpsy2+bpsy3)/3
+    bpdi<-(bpdi1+bpdi2+bpdi3)/3
+    if ((bpsy>=140)||(bpdi>=90)) {
+      bpx<-3
+    } else if ((bpsy<120)&&(bpdi<80)) {
+      bpx <- 1
+    } else {
+      bpx <- 2
+    }
+  }
+  result <- bpx
+}
+afterdata$bpx <- mapply(bpxfun, miceOutput$bpsy1,miceOutput$bpsy2,miceOutput$bpsy3,miceOutput$bpdi1,miceOutput$bpdi2,miceOutput$bpdi3,miceOutput$bpq050a)
+
+
+# Diebetes   HBA1C≥6.5%或者INSULIN为1或者HYPOGLU为1
+diebetesfun <- function(a,b,c) {
+  t <- 0
+  if (a>=6.5) t<-1
+  if (b==1) t<-1
+  if (c==1) t<-1
+  result<-t
+}
+afterdata$diebetes <- mapply(diebetesfun, miceOutput$hba1c, miceOutput$insulin, miceOutput$hypoglu)
