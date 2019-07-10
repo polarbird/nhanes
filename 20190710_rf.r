@@ -1,3 +1,5 @@
+setwd("/home/work/nhanes")
+
 newdata<-read.csv("newdata20190710.csv")
 
 library(lattice) 
