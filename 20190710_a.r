@@ -15,9 +15,6 @@ newdata <- newdata[,-38]
 
 write.csv(newdata, 'newdata20190710.csv',row.names = FALSE)
 
-install.packages("mice")
-install.packages("randomForest")
-
 library(lattice) 
 library(MASS)
 library(nnet)

@@ -42,5 +42,7 @@ summary(line_model)
 imp <- mice(newdata, seed=1234)
 fit <- with(imp, line_model)
 
+write.csv(miceOutput, 'thedata.completena20190711.csv',row.names = FALSE)
 
 
+source <-read.csv('newdata_completena_20190710.csv')

@@ -1,4 +1,4 @@
-WORK_DIR = "~/nhanes"
+WORK_DIR = "D:/work/nhanes"
 setwd(WORK_DIR)
 
 df <- read.csv("thedata.csv")
@@ -7,8 +7,8 @@ df$egfr_index[df$egfr < 60 ] <- 1
 df$egfr_index[df$egfr >= 60 & df$egfr <90 ] <- 2
 df$egfr_index[df$egfr >= 90 ] <- 3
 
-df$egfr_index <- factor(df$egfr_index, levels=c(1,2,3),
-                   labels=c("Moderately", "Mildly", "Normal"))
+df$egfr_index <- factor(df$egfr_index, levels=c(1,2,3), labels=c("Moderately", "Mildly", "Normal"))
+
 table(df$egfr_index)
 
 formula <- (egfr_index~smq020 + smq040 + pb + cd + hg + se + mn 
